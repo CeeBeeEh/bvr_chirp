@@ -1,0 +1,17 @@
+[mqtt_config]
+host="127.0.0.1"
+port=1884
+max_packet_size=2048000
+topic="BlueIris/alert"
+device_id="BVR Chirp Bot"
+username="username"
+password="password"
+
+[messaging_config]
+service_type="discord"
+token="YOUR_TOKEN_HERE"
+name="BVR Chirp Bot"
+host="https://matrix.org"
+username="YOUR_USERNAME"
+password="YOUR_PASSWORD"
+endpoint="http://<BLUE_IRIS_IP>:81"
