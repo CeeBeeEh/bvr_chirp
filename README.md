@@ -34,8 +34,7 @@ You need to be running a separate MQTT broker. The one I personally use and test
 I found it easiest to use by running it with docker:
 
 ```
-./build_rumqttd_docker.sh
-docker run -p 1883:1883 -p 1884:1884 -v /absolute/path/to/rumqttd.toml:/rumqttd.toml -it rumqttd -c /rumqttd.toml
+docker run -p 1883:1883 -p 1884:1884 -v /absolute/path/to/rumqttd.toml:/rumqttd.toml -it bytebeamio/rumqttd -c /rumqttd.toml
 ```
 
 You need to configure a username and password for the `rumqttd.toml` file. It is also important that the `max_payload_size` in the `rumqttd.toml` file is set the same as the MQTT client max_packet_size (see below). You can see an example in the file `rumqttd_example.toml`
