@@ -1,12 +1,10 @@
 use std::sync::mpsc::Receiver;
-use matrix_sdk::{
-    ruma::events::room::message::{
-        MessageType, OriginalSyncRoomMessageEvent, RoomMessageEventContent,
-    },
-    ruma::events::room::member::StrippedRoomMemberEvent,
-    Client, Room, RoomState,
-};
+use matrix_sdk::{ruma::events::room::message::{
+    MessageType, OriginalSyncRoomMessageEvent, RoomMessageEventContent,
+}, ruma::events::room::member::StrippedRoomMemberEvent, Client, Room, RoomState};
+use matrix_sdk::config::SyncSettings;
 use matrix_sdk::ruma::RoomId;
+use serde_json::json;
 use tokio::time::{sleep, Duration};
 use crate::bvr_chirp_config::MessagingConfig;
 use crate::bvr_chirp_message::BvrChirpMessage;
@@ -73,24 +71,45 @@ pub async fn run(config: MessagingConfig, rx: Receiver<BvrChirpMessage>) -> anyh
         .initial_device_display_name(&*config.name)
         .await?;
 
+    let _ = client.sync_once(SyncSettings::default()).await;
+
     loop {
-        let array_message = rx.try_iter().collect::<Vec<BvrChirpMessage>>();
+        // Receive the next message
+        let bvr_msg = match rx.recv() {
+            Ok(msg) => msg,
+            Err(err) => {
+                eprintln!("MATRIX: Failed to receive message: {}", err);
+                continue;
+            }
+        };
 
-        for bvr_msg in array_message {
-            let mut message = bvr_msg.camera_name.clone();
-            message.push_str(&bvr_msg.detections.as_str());
-            message.push_str(&bvr_msg.time.as_str());
+        let mut message = bvr_msg.camera_name.clone();
+        message.push_str(&bvr_msg.detections.as_str());
+        message.push_str(&bvr_msg.time.as_str());
 
-            let room_id = <&RoomId>::try_from(bvr_msg.target.as_str()).expect("Failed to get RoomId.");
-            let room = client.get_room(&room_id).unwrap();
-            room.send_attachment(
-                format!("{}.jpg", bvr_msg.camera_name.as_str()).as_str(),
-                &mime::IMAGE_JPEG,
-                bvr_msg.image,
-                Default::default());
-            let content = RoomMessageEventContent::text_plain(message);
-            room.send(content).await?;
-        }
+        let Ok(room_id) = RoomId::parse(bvr_msg.target.as_str()) else {
+            continue;
+        };
+
+        let room = client.get_room(&room_id).unwrap();
+
+        let mut rich_msg = String::new();
+        let upload_response = client.media().upload(&mime::IMAGE_JPEG, bvr_msg.image).await?;
+
+        /*        room.send_attachment(
+                    format!("{}.jpg", bvr_msg.camera_name.as_str()).as_str(),
+                    &mime::IMAGE_JPEG,
+                    bvr_msg.image,
+                    AttachmentConfig::new());
+        */
+        let rich_msg = format!("<b>Detection on {} camera</b>", bvr_msg.camera_name);
+
+        let rich_content = RoomMessageEventContent::text_html(rich_msg.clone(), rich_msg.clone());
+        let content = RoomMessageEventContent::text_plain(message);
+
+        room.send_raw("m.room.message", json!({ "msgType": "m.text", "body": "TEST" })).await?;
+        room.send_raw("m.room.message", json!({ "msgType": "m.image", "info": { "h": 1728, "mimetype": "image/jpeg", "size": 419941, "w": 3072 },"url": upload_response.content_uri, "body": "image.jpg" })).await?;
+        //room.send(rich_content).await?;
     }
 }
 
