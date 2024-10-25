@@ -42,33 +42,47 @@ You need to configure a username and password for the `rumqttd.toml` file. It is
 Once you have a broker setup, you need to configure bvr_chirp. The sample config looks like such 
 
 ```toml
+name="BVR Chirp Bot"
+alert_endpoint="http://192.168.1.200:81"
+
 [mqtt_config]
 host="127.0.0.1"
 port=1884
 max_packet_size=2048000
 topic="BlueIris/alert"
 device_id="BVR Chirp Bot"
-username="YOUR_USERNAME"
-password="YOUR_PASSWORD"
+username="<___MQTT_USERNAME___>"
+password="<___MQTT_PASSWORD___>"
 
-[messaging_config]
-service_type="discord"
-token="YOUR_TOKEN_HERE"
-name="BVR Chirp Bot"
+[matrix_config]
+enabled=false
+token="<___YOUR_TOKEN___>"
+username="<___BOT_USERNAME___>"
+password="<___BOT_PASSWORD___>"
 host="https://matrix.org"
-username="YOUR_USERNAME"
-password="YOUR_PASSWORD"
-endpoint="http://<BLUE_IRIS_IP>:81"
+room_id="<___ROOM_ID___>"
+bot_name="Bvr Chirp Bot"
+
+[discord_config]
+enabled=false
+token="<___YOUR_TOKEN___>"
+channel_id="<___CHANNEL_ID___>"
+bot_name="Bvr Chirp Bot"
+
+[slack_config]
+enabled=true
+token="<___YOUR_TOKEN___>"
+channel_id="<___CHANNEL_ID___>"
+bot_name="Bvr Chirp Bot"
 ```
 
 Some notes:
 
 * max_packet_size: must be set to a value higher than the largest image will be transmitted, otherwise MQTT will refuse the message for being too large
 * topic: this can be anything you want, but you must make sure your sender (Blue Iris) and bvr_chirp are using the same topic
-* service_type: for now this is only Discord, with matrix half implemented. Eventually I would like to have other services like Telegram, Signal, Whatsapp, or whatever users need/want
 * token: this the auth token for the messaging service. For example, this would be your Discord bot API token
-* host (under messaging_config): this is mainly needed for matrix to specify the homeserver for the bot  
-* endpoint: this is your Blue Iris URL
+* host (under matrix_config): this is needed for matrix to specify the homeserver for the bot  
+* alert_endpoint: this is your Blue Iris URL
 
 The links to Blue Iris in messages look like this:
 

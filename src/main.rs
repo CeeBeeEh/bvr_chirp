@@ -1,17 +1,18 @@
 use std::{env, thread};
 use std::error::Error;
 use std::process::exit;
-use std::sync::mpsc;
 use serde::{Deserialize, Serialize};
 use serenity::futures::TryFutureExt;
+use clients::{discord_client, matrix_client, mqtt_client};
 use crate::bvr_chirp_config::BvrChirpConfig;
 use crate::bvr_chirp_message::BvrChirpMessage;
+use crate::clients::mqtt_client::TxClient;
+use crate::clients::slack_client;
 
-mod mqtt_client;
-mod matrix_client;
 mod bvr_chirp_message;
-mod discord_client;
 mod bvr_chirp_config;
+mod clients;
+mod message_templates;
 
 /// BVR Chirp - A multi service messaging bot that supports Discord and Matrix.
 ///
@@ -54,30 +55,60 @@ fn main() {
         }
     };
 
+    let mut tx_senders: Vec<TxClient> = Vec::new();
     // Channel for sending messages between threads
-    let (tx, rx) = mpsc::channel::<BvrChirpMessage>();
 
-    // Spawn a messaging service thread
-    let service_type = cfg.messaging_config.service_type.to_lowercase();
-    thread::spawn(move || {
-        // TODO: Make client init code consistent for different services
-        match service_type.as_str() {
-            "discord" => {
-                let rt = tokio::runtime::Runtime::new().unwrap();
-                rt.block_on(discord_client::start(cfg.messaging_config, rx))
-            },
-            "matrix" => {
-                match
-                matrix_client::run(cfg.messaging_config, rx)
-                {
-                    Ok(..) => eprintln!("Successfully connected to matrix"),
-                    Err(err) => eprintln!("Error connecting to matrix {}", err)
-                };
-            }
-            _ => eprintln!("Error: Unsupported messaging service type: {}", service_type),
-        };
-    });
+    let alert_endpoint1 = cfg.alert_endpoint.clone();
+    let alert_endpoint2 = cfg.alert_endpoint.clone();
+    let alert_endpoint3 = cfg.alert_endpoint.clone();
+
+    // Spawn messaging service threads
+    if cfg.discord_config.enabled {
+        let (tx, rx) = crossbeam_channel::unbounded::<BvrChirpMessage>();
+        tx_senders.push(TxClient {
+            name: "Discord".to_string(),
+            tx
+        });
+
+        thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            match rt.block_on(discord_client::start(cfg.discord_config.clone(), &alert_endpoint1.as_str(), rx))
+            {
+                Ok(..) => eprintln!("Successfully connected to matrix"),
+                Err(err) => eprintln!("Error connecting to matrix {}", err)
+            };
+        });
+    }
+
+    if cfg.matrix_config.enabled {
+        let (tx, rx) = crossbeam_channel::unbounded::<BvrChirpMessage>();
+        tx_senders.push(TxClient {
+            name: "Matrix".to_string(),
+            tx
+        });
+
+        thread::spawn(move || {
+            match matrix_client::run(cfg.matrix_config.clone(), &alert_endpoint2.as_str(), rx)
+            {
+                Ok(..) => eprintln!("Successfully connected to matrix"),
+                Err(err) => eprintln!("Error connecting to matrix {}", err)
+            };
+        });
+    }
+
+    if cfg.slack_config.enabled {
+        let (tx, rx) = crossbeam_channel::unbounded::<BvrChirpMessage>();
+        tx_senders.push(TxClient {
+            name: "Slack".to_string(),
+            tx
+        });
+
+        thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(slack_client::run_slack_client(cfg.slack_config.clone(), &alert_endpoint3.as_str(), rx)).unwrap();
+        });
+    }
 
     // Start the MQTT client
-    mqtt_client::run(cfg.mqtt_config, tx);
+    mqtt_client::run(cfg.mqtt_config, tx_senders);
 }

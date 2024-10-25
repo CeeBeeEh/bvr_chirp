@@ -1,14 +1,19 @@
 use std::str;
-use std::sync::mpsc::Sender;
 // TODO: Optional config between v3 and v5 for MQTT
 use rumqttc::v5::{MqttOptions, Client, Event, Incoming};
 use rumqttc::v5::mqttbytes::QoS;
 use std::time::Duration;
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
+use crossbeam_channel::Sender;
 use serde_json::{Value};
 use crate::bvr_chirp_config::MqttConfig;
 use crate::bvr_chirp_message::BvrChirpMessage;
+
+pub struct TxClient {
+    pub name: String,
+    pub tx: Sender<BvrChirpMessage>,
+}
 
 /// Initializes and runs the MQTT client, processing incoming messages and
 /// sending them through a channel after decoding and validation.
@@ -26,7 +31,7 @@ use crate::bvr_chirp_message::BvrChirpMessage;
 /// - Logs and continues on failure to convert the payload to a string, parse JSON, or extract fields.
 /// - Logs and skips processing if decoding the base64 image fails.
 /// - Stops processing further messages if a critical error occurs in receiving an MQTT event.
-pub fn run(config: MqttConfig, tx: Sender<BvrChirpMessage>) {
+pub fn run(config: MqttConfig, tx_clients: Vec<TxClient>) {
     // Define MQTT options
     let mut mqttoptions = MqttOptions::new(config.device_id, config.host, config.port);
     mqttoptions.set_credentials(config.username, config.password);
@@ -135,10 +140,12 @@ pub fn run(config: MqttConfig, tx: Sender<BvrChirpMessage>) {
                     image,
                 );
 
-                if tx.send(message).is_err() {
-                    eprintln!("MQTT: Failed to send message through channel");
-                } else {
-                    eprintln!("MQTT: MQTT - Passed message");
+                for client in &tx_clients {
+                    if client.tx.send(message.clone()).is_err() {
+                        eprintln!("MQTT: Failed to send message through channel to {}", client.name);
+                    } else {
+                        eprintln!("MQTT: Passed message to {}", client.name);
+                    }
                 }
             }
             Err(e) => {

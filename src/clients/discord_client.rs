@@ -1,10 +1,9 @@
-use std::sync::mpsc::Receiver;
 use serenity::model::id::ChannelId;
 use serenity::prelude::*;
 use crate::bvr_chirp_message::BvrChirpMessage;
 use serenity::all::{Colour, CreateEmbed, Timestamp};
 use serenity::builder::{CreateAttachment, CreateMessage};
-use crate::bvr_chirp_config::MessagingConfig;
+use crate::bvr_chirp_config::DiscordConfig;
 
 /// Starts the Discord client and listens for incoming messages to be sent to a specific Discord channel.
 ///
@@ -19,7 +18,9 @@ use crate::bvr_chirp_config::MessagingConfig;
 ///
 /// # Error Handling
 /// - Logs errors when failing to create the client, parse the channel ID, or send the message.
-pub async fn start(config: MessagingConfig, rx: Receiver<BvrChirpMessage>) {
+pub async fn start(config: DiscordConfig,
+                   alert_endpoint: &str,
+                   rx: crossbeam_channel::Receiver<BvrChirpMessage>) -> anyhow::Result<()> {
     // Initialize the Discord client
     let client = match Client::builder(
         config.token.clone(),
@@ -28,12 +29,12 @@ pub async fn start(config: MessagingConfig, rx: Receiver<BvrChirpMessage>) {
         .await
     {
         Ok(client) => {
-            eprintln!("DISCORD: Client connected");
+            eprintln!("DISCORD: Client ready");
             client
         }
         Err(err) => {
             eprintln!("DISCORD: Error connecting client: {}", err);
-            return;
+            return Err(anyhow::Error::from(err));
         }
     };
 
@@ -68,7 +69,7 @@ pub async fn start(config: MessagingConfig, rx: Receiver<BvrChirpMessage>) {
         let title = format!("Detection on {} camera", bvr_msg.camera_name);
         let url = format!(
             "{}/ui3.htm?rec={}&cam={}&m=1",
-            config.endpoint, bvr_msg.db_id, bvr_msg.camera_name
+            alert_endpoint, bvr_msg.db_id, bvr_msg.camera_name
         );
 
         let embed = CreateEmbed::new()

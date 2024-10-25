@@ -1,17 +1,32 @@
+name="BVR Chirp Bot"
+alert_endpoint="http://192.168.1.200:81"
+
 [mqtt_config]
 host="127.0.0.1"
 port=1884
 max_packet_size=2048000
 topic="BlueIris/alert"
 device_id="BVR Chirp Bot"
-username="username"
-password="password"
+username="<___MQTT_USERNAME___>"
+password="<___MQTT_PASSWORD___>"
 
-[messaging_config]
-service_type="discord"
-token="YOUR_TOKEN_HERE"
-name="BVR Chirp Bot"
+[matrix_config]
+enabled=false
+token="<___YOUR_TOKEN___>"
+username="<___BOT_USERNAME___>"
+password="<___BOT_PASSWORD___>"
 host="https://matrix.org"
-username="YOUR_USERNAME"
-password="YOUR_PASSWORD"
-endpoint="http://<BLUE_IRIS_IP>:81"
+room_id="<___ROOM_ID___>"
+bot_name="Bvr Chirp Bot"
+
+[discord_config]
+enabled=false
+token="<___YOUR_TOKEN___>"
+channel_id="<___CHANNEL_ID___>"
+bot_name="Bvr Chirp Bot"
+
+[slack_config]
+enabled=true
+token="<___YOUR_TOKEN___>"
+channel_id="<___CHANNEL_ID___>"
+bot_name="Bvr Chirp Bot"

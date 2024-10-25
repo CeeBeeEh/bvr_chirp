@@ -1,4 +1,3 @@
-use std::sync::mpsc::Receiver;
 use matrix_sdk::{ruma::events::room::message::{
     MessageType, OriginalSyncRoomMessageEvent, RoomMessageEventContent,
 }, ruma::events::room::member::StrippedRoomMemberEvent, Client, Room, RoomState};
@@ -6,7 +5,7 @@ use matrix_sdk::config::SyncSettings;
 use matrix_sdk::ruma::RoomId;
 use serde_json::json;
 use tokio::time::{sleep, Duration};
-use crate::bvr_chirp_config::MessagingConfig;
+use crate::bvr_chirp_config::MatrixConfig;
 use crate::bvr_chirp_message::BvrChirpMessage;
 
 struct MatrixClient(String, String, String);
@@ -63,12 +62,13 @@ async fn on_room_message(event: OriginalSyncRoomMessageEvent, room: Room) {
 
 // TODO: All this matrix code needs to be entirely refactored
 #[tokio::main]
-pub async fn run(config: MessagingConfig, rx: Receiver<BvrChirpMessage>) -> anyhow::Result<()> {
+pub async fn run(config: MatrixConfig,
+                 alert_endpoint: &str,
+                 rx: crossbeam_channel::Receiver<BvrChirpMessage>) -> anyhow::Result<()> {
     let client = Client::builder().homeserver_url(config.host).build().await?;
-    client
-        .matrix_auth()
-        .login_username(config.username, &*config.password)
-        .initial_device_display_name(&*config.name)
+    client.matrix_auth()
+        .login_username(config.username, &config.password)
+        .initial_device_display_name(&config.bot_name)
         .await?;
 
     let _ = client.sync_once(SyncSettings::default()).await;
