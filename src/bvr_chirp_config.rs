@@ -26,10 +26,9 @@ pub struct MqttConfig {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct MatrixConfig {
     pub enabled: bool,
-    pub token: String,
     pub username: String,
     pub password: String,
-    pub host: String,
+    pub homeserver_url: String,
     pub room_id: String,
     pub bot_name: String,
 }
@@ -65,10 +64,9 @@ impl Default for BvrChirpConfig {
             },
             matrix_config: MatrixConfig {
                 enabled: false,
-                token: "<token>".to_string(),
                 username: "username".to_string(),
                 password: "password".to_string(),
-                host: "https://matrix.org".to_string(),
+                homeserver_url: "https://matrix.org".to_string(),
                 room_id: "<room_id>".to_string(),
                 bot_name: "Bvr Chirp Bot".to_string(),
             },

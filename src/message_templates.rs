@@ -1,5 +1,19 @@
 use once_cell::sync::Lazy;
 
+pub(crate) const MATRIX_TEMPLATE: Lazy<String> = Lazy::new(||String::from(r#"{
+  "msgtype": "m.room.message",
+  "body": "Detection on <CAMERA_NAME> camera\n\nDetections: <DETECTIONS>\nTime <TIME>",
+  "formatted_body": "<strong>Detection on <CAMERA_NAME> camera</strong><br><br><strong>Detections</strong><br><DETECTIONS><br><br><strong>Time</strong><br><TIME>",
+  "format": "org.matrix.custom.html",
+  "url": "<IMG_URI>"
+}"#));
+
+//"info": {
+//"mimetype": "image/jpeg",
+//"size": <IMG_SIZE_BYTES>,
+//"w": <IMG_WIDTH>,
+//"h": <IMG_HEIGHT>
+//}
 pub(crate) static SLACK_TEMPLATE: Lazy<String> = Lazy::new(||String::from("
 [
 	{

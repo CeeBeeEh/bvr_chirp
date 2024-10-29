@@ -41,7 +41,7 @@ pub fn run(config: MqttConfig, tx_clients: Vec<TxClient>) {
     mqttoptions.set_max_packet_size(max_packet);
 
     // Create an MQTT client and connection
-    let (mut client, mut connection) = Client::new(mqttoptions, 10);
+    let (client, mut connection) = Client::new(mqttoptions, 10);
     eprintln!("MQTT: Client connected");
 
     // Subscribe to a topic

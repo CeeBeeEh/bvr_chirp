@@ -12,10 +12,9 @@ password="<___MQTT_PASSWORD___>"
 
 [matrix_config]
 enabled=false
-token="<___YOUR_TOKEN___>"
 username="<___BOT_USERNAME___>"
 password="<___BOT_PASSWORD___>"
-host="https://matrix.org"
+homeserver_url="https://matrix.org"
 room_id="<___ROOM_ID___>"
 bot_name="Bvr Chirp Bot"
 

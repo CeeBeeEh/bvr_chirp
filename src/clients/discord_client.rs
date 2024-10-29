@@ -1,75 +1,42 @@
+use std::process::exit;
 use serenity::model::id::ChannelId;
 use serenity::prelude::*;
-use crate::bvr_chirp_message::BvrChirpMessage;
 use serenity::all::{Colour, CreateEmbed, Timestamp};
 use serenity::builder::{CreateAttachment, CreateMessage};
+use anyhow::{anyhow, Result};
+use crossbeam_channel::Receiver;
 use crate::bvr_chirp_config::DiscordConfig;
+use crate::bvr_chirp_message::BvrChirpMessage;
 
-/// Starts the Discord client and listens for incoming messages to be sent to a specific Discord channel.
-///
-/// # Arguments
-/// * `config` - Configuration for the Discord messaging client, including the bot token and endpoint URL.
-/// * `rx` - A channel receiver to get `BvrMessage` instances from other parts of the application.
-///
-/// # Workflow
-/// - Initializes the Discord client with the provided token and gateway intents.
-/// - Enters an infinite loop, waiting to receive messages from the `rx` channel.
-/// - On receiving a message, constructs a Discord message, including an embed and an image attachment, and sends it to the specified channel.
-///
-/// # Error Handling
-/// - Logs errors when failing to create the client, parse the channel ID, or send the message.
-pub async fn start(config: DiscordConfig,
-                   alert_endpoint: &str,
-                   rx: crossbeam_channel::Receiver<BvrChirpMessage>) -> anyhow::Result<()> {
-    // Initialize the Discord client
-    let client = match Client::builder(
-        config.token.clone(),
-        GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT,
-    )
-        .await
-    {
-        Ok(client) => {
-            eprintln!("DISCORD: Client ready");
-            client
-        }
-        Err(err) => {
-            eprintln!("DISCORD: Error connecting client: {}", err);
-            return Err(anyhow::Error::from(err));
-        }
-    };
+struct DiscordClient {
+    client: Client,
+    alert_endpoint: String,
+}
 
-    loop {
-        // Receive the next message
-        let bvr_msg = match rx.recv() {
-            Ok(msg) => msg,
-            Err(err) => {
-                eprintln!("DISCORD: Failed to receive message: {}", err);
-                continue;
-            }
-        };
+impl DiscordClient {
+    async fn new(token: String, alert_endpoint: String) -> Result<Self> {
+        let client = Client::builder(
+            token,
+            GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT,
+        )
+            .await
+            .map_err(|e| anyhow!("Failed to create Discord client: {}", e))?;
 
-        // Parse the channel ID, log and skip on failure
-        let channel_id = match bvr_msg.target.parse::<u64>() {
-            Ok(id) => id,
-            Err(_) => {
-                eprintln!("DISCORD: Invalid channel ID: {}", bvr_msg.target);
-                continue;
-            }
-        };
+        Ok(Self {
+            client,
+            alert_endpoint,
+        })
+    }
 
-        let channel = match ChannelId::try_from(channel_id) {
-            Ok(channel) => channel,
-            Err(err) => {
-                eprintln!("DISCORD: Failed to convert channel ID: {}", err);
-                continue;
-            }
-        };
+    async fn send_message(&self, channel_id: u64, bvr_msg: &BvrChirpMessage) -> Result<()> {
+        let channel = ChannelId::try_from(channel_id)
+            .map_err(|e| anyhow!("Failed to convert channel ID: {}", e))?;
 
         // Create the embed message
         let title = format!("Detection on {} camera", bvr_msg.camera_name);
         let url = format!(
             "{}/ui3.htm?rec={}&cam={}&m=1",
-            alert_endpoint, bvr_msg.db_id, bvr_msg.camera_name
+            self.alert_endpoint, bvr_msg.db_id, bvr_msg.camera_name
         );
 
         let embed = CreateEmbed::new()
@@ -77,8 +44,8 @@ pub async fn start(config: DiscordConfig,
             .url(url)
             .colour(Colour::BLITZ_BLUE)
             .fields(vec![
-                ("**Detections**", bvr_msg.detections, false),
-                ("**Time**", bvr_msg.time, false),
+                ("**Detections**", &bvr_msg.detections, false),
+                ("**Time**", &bvr_msg.time, false),
             ])
             .timestamp(Timestamp::now());
 
@@ -86,14 +53,55 @@ pub async fn start(config: DiscordConfig,
         let message = CreateMessage::new()
             .embed(embed)
             .add_file(CreateAttachment::bytes(
-                bvr_msg.image,
+                bvr_msg.image.clone(),
                 format!("{}.jpg", bvr_msg.camera_name),
             ));
 
-        // Send the message and log the result
-        match channel.send_message(client.http.as_ref(), message).await {
-            Ok(_) => eprintln!("DISCORD: Message sent"),
-            Err(err) => eprintln!("DISCORD: Sending error: {}", err),
+        channel.send_message(self.client.http.as_ref(), message)
+            .await
+            .map_err(|e| anyhow!("Failed to send message: {}", e))?;
+
+        println!("DISCORD: Message sent - {}", chrono::offset::Local::now().format("%Y-%m-%d %H:%M:%S.%3f"));
+        Ok(())
+    }
+
+    async fn process_alert(&self, bvr_msg: BvrChirpMessage) -> Result<()> {
+        // Parse the channel ID from the target
+        let channel_id = bvr_msg.target.parse::<u64>()
+            .map_err(|_| anyhow!("Invalid channel ID: {}", bvr_msg.target))?;
+
+        self.send_message(channel_id, &bvr_msg).await?;
+        Ok(())
+    }
+}
+
+pub async fn run_discord_client(
+    config: DiscordConfig,
+    alert_endpoint: &str,
+    rx: Receiver<BvrChirpMessage>
+) -> Result<()> {
+    let discord = match DiscordClient::new(config.token, alert_endpoint.to_owned()).await {
+        Ok(discord_client) => {
+            println!("DISCORD: Client ready");
+            discord_client },
+        Err(err) => {
+            println!("DISCORD: Error creating Discord client: {}", err);
+            exit(1)
+        }
+    };
+
+    loop {
+        let bvr_msg = match rx.recv() {
+            Ok(msg) => msg,
+            Err(err) => {
+                println!("DISCORD: Failed to receive message: {}", err);
+                continue;
+            }
+        };
+
+        if let Err(e) = discord.process_alert(bvr_msg).await {
+            println!("DISCORD: Error processing message: {}", e);
+            continue;
         }
     }
 }

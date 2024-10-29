@@ -18,9 +18,12 @@ crossbeam-channel = "0.5.13"
 
 # Messaging Platform dependencies
 slack = "0.25.0"
+# ruma = { version = "0.11", features = ["client-api-c", "client-ext-client-api", "client-hyper-native-tls", "rand"] }
 matrix-sdk = "0.7.1"
 serenity = "0.12.2"
 reqwest = { version = "0.10.10", features = ["json"] }
 once_cell = "1.19.0"
+config = "0.14.1"
+chrono = "0.4.38"
 
 
